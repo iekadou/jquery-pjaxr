@@ -62,8 +62,15 @@
             return;
         }
 
+        var url = $.isFunction(link.href) ? link.href() : link.href;
+
+        var xhr_url = url; // + (url.indexOf('pjaxr_reset') != -1) ? '' : (url.indexOf('?') == -1) ? '?pjaxr_reset' : '&pjaxr_reset';
+        if (xhr_url.indexOf('pjaxr_reset') == -1) {
+            xhr_url += (url.indexOf('?') == -1) ? '?pjaxr_reset' : '&pjaxr_reset';
+        }
+
         var defaults = {
-            url: $.isFunction(link.href) ? link.href() : link.href,
+            url: xhr_url,
             type: 'GET',  // always GET since we currently not support other methods
             dataType: 'html'
         };
@@ -133,7 +140,7 @@
 
             // If there is a layout version mismatch, hard load the new url
             if (currentVersion && latestVersion && currentVersion !== latestVersion) {
-                loadHard(opts.url);
+                loadHard(url);
                 return;
             }
 
@@ -142,7 +149,7 @@
 
             // if response data doesn't fit, hard load the new url
             if (!head_match && !body_match) {
-                loadHard(opts.url);
+                loadHard(url);
                 return;
             }
             fire('pjaxr:success', [data, textStatus, jqXHR, opts]);
@@ -165,6 +172,7 @@
                 var body_parts = processPjaxrBody($body.children());
                 var apply_body_parts = body_parts[0];
                 var revert_body_parts = body_parts[1];
+                var remove_body_parts = body_parts[2];
             }
 
             var namespace_match = data.match(/<pjaxr-namespace>([\s\S.]*)<\/pjaxr-namespace>/i);
@@ -187,7 +195,8 @@
             $.extend(fnPjaxr.state, {
                 head_revert: head_match ? revert_head_parts : null,
                 head_remove: head_match ? remove_head_parts : null,
-                body_revert: body_match ? revert_body_parts : null
+                body_revert: body_match ? revert_body_parts : null,
+                body_remove: body_match ? remove_body_parts : null
             });
             if (opts.push || opts.replace) {
                 window.history.replaceState(fnPjaxr.state, fnPjaxr.state.title, fnPjaxr.state.url);
@@ -196,7 +205,7 @@
             fnPjaxr.state = {
                 id: stateId,
                 namespace: namespace,
-                url: opts.url,
+                url: url,
                 title: document.title,
                 head_apply: head_match ? apply_head_parts : null,
                 body_apply: body_match ? apply_body_parts : null
@@ -214,7 +223,7 @@
 
         xhr.fail(function(jqXHR, textStatus, errorThrown) {
             if (textStatus !== 'abort' && fire('pjaxr:fail', [jqXHR, textStatus, errorThrown, opts])) {
-                loadHard(opts.url);
+                loadHard(url);
             }
         });
 
@@ -379,6 +388,7 @@
     function processPjaxrBody(elements) {
         var apply_body_parts = [];
         var revert_body_parts = [];
+        var remove_body_parts = [];
 
         if (elements && elements.length > 0) {
             $.each(elements, function(index, value) {
@@ -402,7 +412,13 @@
             });
         }
 
-        return [apply_body_parts, revert_body_parts];
+        $('body [data-remove-on-pjaxr]').each(function() {
+            var $this = $(this);
+            remove_body_parts.push(outerHTML($this));
+            $this.remove();
+        });
+
+        return [apply_body_parts, revert_body_parts, remove_body_parts];
     }
 
     // helper to trigger jQuery events
@@ -430,13 +446,6 @@
     // hard load to new state without pjaxr
     // replace would brick expected history behavior - see: #17
     function loadHard(url) {
-        // append [?||&]pjaxr_reset to current url to avoid chrome/webkit caching problem - see: #16
-        var additional_param = '';
-        if (window.location.search.indexOf('pjaxr_reset') == -1) {
-            additional_param = window.location.search.substring(0, 1) == '?' ? '&' : '?';
-            additional_param += 'pjaxr_reset';
-        }
-        window.history.replaceState(window.history.state, document.title, window.location.href + additional_param);
         window.location.href = url;
     }
 
