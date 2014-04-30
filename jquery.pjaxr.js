@@ -23,7 +23,7 @@
         }
         // else --> the request must come from pjaxr --> register on $(document).one('pjaxr:done');
         else {
-            return $(document).one('pjaxr:done', func);
+            return $(document).one('pjaxr:done, pjaxr:end', func);
         }
     }
 
@@ -32,7 +32,7 @@
         if (!$.isReady) {
             $(document).ready(func);
         }
-        return $(document).on('pjaxr:done', func);
+        return $(document).on('pjaxr:done, pjaxr:end', func);
     }
 
     function request(link, options) {
